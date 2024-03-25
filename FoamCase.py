@@ -7,6 +7,7 @@ latter ML applications.
 import numpy as np
 import re
 import os
+from scipy.interpolate import griddata
 
 class FoamTimeSave:
     def __init__(self, case_path, time):
@@ -86,5 +87,122 @@ class FoamTimeSave:
             elif "uniformValue" in self.fields[name]:
                 Warning("Writing uniform value to npy file")
                 np.save(os.path.join(output_path, name), self.fields[name]["uniformValue"])
+    
+
+class RefField:
+    '''
+    ## Description
+    The instance of RefField class maintains the high-fidelity data for reference.
+    '''
+    def __init__(self, RefPath, name):
+        '''
+        '''
+        self.RefPath = RefPath
+        self.name = name
+        self.read_field()
+        
+    def read_field(self):
+        self.fields = {}
+        self.fields["xx"] = np.genfromtxt(os.path.join(self.RefPath, self.name+"_x.txt"), skip_header=1)
+        self.fields["yy"] = np.genfromtxt(os.path.join(self.RefPath, self.name+"_y.txt"), skip_header=1)
+        self.fields["um"] = np.genfromtxt(os.path.join(self.RefPath, self.name+"_um.txt"),skip_header=1)
+        self.fields["vm"] = np.genfromtxt(os.path.join(self.RefPath, self.name+"_vm.txt"),skip_header=1) 
+        self.fields["k"] = 0.5*np.genfromtxt(os.path.join(self.RefPath, self.name+"_uu.txt"),skip_header=1)\
+                        + 0.5*np.genfromtxt(os.path.join(self.RefPath, self.name+"_vv.txt"),skip_header=1)\
+                        + 0.5*np.genfromtxt(os.path.join(self.RefPath, self.name+"_ww.txt"),skip_header=1)
+        
+class FoamLineComparison:
+    '''
+    ## Description
+    In this class, we use the FoamTimeSave class to read the data, and use 
+    griddata to interploate the data to the reference line.
+    '''
+    def __init__(self, case_paths: list, times:list, names:list, RefPath:str, RefName: str,
+                 lines: dict):
+        '''
+        ## Example input:
+        FoamLineComparison(["/path/to/CBFS-CND", "/path/to/CBFS-NN"], [10000, 10000], ["CND", "NN"],
+                            RefPath="./path/to/LES", RefName="CBFS_13700", 
+                            lines={"x0p5": 
+                                  {
+                                    "start": [0.5, 0.0],
+                                    "end":   [0.5, 1.0]
+                                   },
+                                   "x1p0": {
+                                       "start": [1.0, 0.0],
+                                       "end":   [1.0, 1.0]
+                                   }
+                                   })
+        '''
+        assert (len(case_paths) == len(times) and len(case_paths) == len(names)),\
+            "The number of case paths, times, and names must be the same."
+        
+        self.case_paths = case_paths
+        self.times = times
+        self.RefPath = RefPath
+        self.RefName = RefName
+        
+        self.cases = {}
+        for i, name in enumerate(names):
+            self.cases[name] = FoamTimeSave(case_paths[i], times[i])
+        
+        self.lines = lines
+        self.RefCase = RefField(RefPath, RefName)
+        self.cases = {}
+        for path, time, name in zip(case_paths, times, names):
+            self.cases[name] = FoamTimeSave(path, time)
+        
+    def extractLine(self, npCase = 100, refSkip = 5):
+        '''
+        ## Description
+        Extract the line data based on the line definition.
+        Use griddata to get the interploated line data for both cases and references
+        '''
+        self.lineData = {}
+        for key in self.lines:
+            ls = self.lines[key]["start"]
+            le = self.lines[key]["end"]
+            xx = np.linspace(ls[0], le[0], npCase)
+            yy = np.linspace(ls[1], le[1], npCase)
+            self.lineData[key] = {}
+            
+            for name in self.cases.keys():
+                self.lineData[key][name] = {}
+                self.lineData[key][name]["xx"] = xx
+                self.lineData[key][name]["yy"] = yy
+                self.lineData[key][name]["u"] = griddata((self.cases[name].fields["Cx"]["data"],
+                                                     self.cases[name].fields["Cy"]["data"]),
+                                                     self.cases[name].fields["U"]["data"][:,0],
+                                                     (xx, yy), method='linear')
+                self.lineData[key][name]["v"] = griddata((self.cases[name].fields["Cx"]["data"],
+                                                     self.cases[name].fields["Cy"]["data"]),
+                                                     self.cases[name].fields["U"]["data"][:,1],
+                                                     (xx, yy), method='linear')
+                try:
+                    self.lineData[key][name]["k"] = griddata((self.cases[name].fields["Cx"]["data"],
+                                                        self.cases[name].fields["Cy"]["data"]),
+                                                        self.cases[name].fields["k"]["data"],
+                                                        (xx, yy), method='linear')
+                except:
+                    self.lineData[key][name]["k"] = None
+                    print("The k field is not present in the dataset: {}".format(name))
+                
+            self.lineData[key]["Ref"] = {}
+            self.lineData[key]["Ref"]["xx"] = xx[::refSkip]
+            self.lineData[key]["Ref"]["yy"] = yy[::refSkip]
+            self.lineData[key]["Ref"]["u"] = griddata((self.RefCase.fields["xx"],
+                                                  self.RefCase.fields["yy"]),
+                                                  self.RefCase.fields["um"],
+                                                  (xx[::refSkip], yy[::refSkip]), method='linear')
+            self.lineData[key]["Ref"]["v"] = griddata((self.RefCase.fields["xx"],
+                                                  self.RefCase.fields["yy"]),
+                                                  self.RefCase.fields["vm"],
+                                                  (xx[::refSkip], yy[::refSkip]), method='linear')
+            self.lineData[key]["Ref"]["k"] = griddata((self.RefCase.fields["xx"],
+                                                  self.RefCase.fields["yy"]),
+                                                  self.RefCase.fields["k"],
+                                                  (xx[::refSkip], yy[::refSkip]), method='linear')
             
             
+         
+         
