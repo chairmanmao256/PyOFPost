@@ -133,6 +133,9 @@ class FoamLineComparison:
     ## Description
     In this class, we use the FoamTimeSave class to read the data, and use 
     griddata to interploate the data to the reference line.
+    
+    If you don't want to read any reference data (DNS, LES, etc.) during the comparison,
+    you can simply set `readRef` to `False`.
     '''
     def __init__(self, case_paths: list, times:list, names:list, RefPath:str, RefName: str,
                  lines: dict, readK = False, readRef = True):
@@ -236,7 +239,7 @@ class FoamDiff:
     In this class, we use the FoamTimeSave class to read the simulation data, and use 
     the RefField class to store the reference data. The simulation data is then interpolated
     to the reference data's grid. The difference of the reference data and the interpolated
-    simulation data. 
+    simulation data is then computed. 
     '''
     def __init__(self, case_paths: list, times:list, names:list, RefPath:str, RefName: str,
                  box: dict):
