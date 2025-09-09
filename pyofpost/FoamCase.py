@@ -165,9 +165,10 @@ class FoamLineComparison:
         self.readK = readK
         self.readRef = readRef
         
-        self.cases = {}
-        for i, name in enumerate(names):
-            self.cases[name] = FoamTimeSave(case_paths[i], times[i])
+        # self.cases = {}
+        # for i, name in enumerate(names):
+        #     self.cases[name] = FoamTimeSave(case_paths[i], times[i])
+        print("extra deleted...")
         
         self.lines = lines
         if readRef:
@@ -264,9 +265,10 @@ class FoamDiff:
         self.RefPath = RefPath
         self.RefName = RefName
         
-        self.cases = {}
-        for i, name in enumerate(names):
-            self.cases[name] = FoamTimeSave(case_paths[i], times[i])
+        # self.cases = {}
+        # for i, name in enumerate(names):
+        #     self.cases[name] = FoamTimeSave(case_paths[i], times[i])
+        print("extra deleted...")
         
         self.box = box
         self.RefCase = RefField(RefPath, RefName,readK=False)
